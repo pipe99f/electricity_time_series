@@ -1,0 +1,53 @@
+% =====================================================================
+% PRIMERA PÁGINA: título, autores, resumen, problema, objetivos,
+% preguntas y justificación.
+% =====================================================================
+
+\begin{center}
+	{\Large\bfseries Enhanced Prediction of Electricity Peak Load\\[0.2em]
+		via Machine Learning and Time Series Analysis\par}
+	\vspace{0.35em}
+	{\small Grupo 3 \quad\textbullet\quad 2 de julio de 2026\par}
+\end{center}
+\vspace{0.5em}
+
+\section*{Datos del artículo}
+
+\noindent\textbf{Autores:} S.~Suriya \& R.~Agusthiyar\\
+\textbf{Afiliación:} Department of Computer Science and Applications, SRM Institute of Science and Technology, Ramapuram Campus, Chennai, India.\\
+\textbf{Publicación:} ZANCO Journal of Pure and Applied Sciences (2026), 38(2): 197 a 211.\\
+\textbf{DOI:} \href{https://doi.org/10.21271/ZJPAS.38.2.14}{10.21271/ZJPAS.38.2.14}\\
+\textbf{Palabras clave:} ARIMA, Multivariate, Lasso, XGR Regressor.
+
+\section*{Resumen}
+
+El artículo aborda el pronóstico de la demanda máxima (pico) de electricidad en Tamil Nadu, India, problema crítico para la estabilidad de la red, la programación de la generación y la planificación energética. La dificultad proviene de la estacionalidad, el crecimiento económico y las anomalías climáticas de la región. La metodología propone un marco híbrido que integra modelos estadísticos de series temporales (ARIMA y VAR) con modelos de aprendizaje automático (Lasso, Ridge y XGBoost), aplicados a datos mensuales de consumo y variables meteorológicas. El preprocesamiento incluyó imputación, detección de atípicos (Winsorización), normalización Min-Max y codificación cíclica; la ingeniería de variables incorporó rezagos, medias móviles, razones sectoriales y términos de interacción. Los modelos se evaluaron con MAE, RMSE y MAPE mediante validación walk-forward y $k$-fold. Los resultados muestran que el modelo híbrido propuesto alcanzó el menor error (MAPE $3{,}82\,\%$), seguido por ARIMA ($6{,}28\,\%$) y VAR ($7{,}82\,\%$), aunque el resumen del artículo atribuye el mejor desempeño a ARIMA.
+
+\section*{Planteamiento del problema}
+
+La predicción del pico de demanda eléctrica es esencial para garantizar un suministro confiable, optimizar la operación de la red y prevenir apagones. En Tamil Nadu, la demanda presenta patrones complejos por la combinación de estacionalidad (calor extremo, monzones), crecimiento económico y prácticas socio-culturales. Los modelos estadísticos tradicionales (ARIMA simple, suavizado exponencial) capturan tendencia y estacionalidad lineales pero fallan en interacciones multivariable complejas; los modelos de aprendizaje automático son flexibles pero propensos al sobreajuste, poco interpretables y exigentes en datos. Los enfoques híbridos existentes carecen de optimización sistemática y no superan de forma consistente a modelos únicos bien calibrados.
+
+\section*{Objetivos}
+
+\noindent\textbf{Objetivo general.} Desarrollar un marco de pronóstico híbrido que integre modelos estadísticos de series temporales y de aprendizaje automático para predecir la demanda máxima mensual de electricidad en Tamil Nadu.
+
+\noindent\textbf{Objetivos específicos:}
+\begin{enumerate}
+	\item Integrar ARIMA, VAR y un ensemble híbrido VAR-ML (Lasso, Ridge, XGBoost) para capturar dependencias lineales y no lineales.
+	\item Aplicar el marco a datos históricos de consumo eléctrico y variables meteorológicas de Tamil Nadu.
+	\item Evaluar comparativamente los modelos con RMSE, MAE, MAPE y el estadístico $U$ de Theil.
+	\item Demostrar la utilidad del modelo para planificación operativa, gestión de carga y formulación de política.
+\end{enumerate}
+
+\section*{Preguntas de investigación}
+
+\begin{enumerate}
+	\item ¿En qué medida un marco híbrido supera a los modelos individuales (ARIMA, VAR, Lasso, Ridge, XGBoost) en la predicción del pico de demanda mensual?
+	\item ¿Qué variables (meteorológicas, sectoriales) contribuyen más a la precisión del pronóstico?
+	\item ¿Cómo se comporta el modelo durante meses con anomalías climáticas extremas?
+	\item ¿Es el modelo utilizable por operadores de red para decisiones operativas y de política?
+\end{enumerate}
+
+\section*{Justificación}
+
+La predicción precisa del pico de demanda permite a las empresas eléctricas programar la generación, equilibrar la carga, realizar mantenimiento preventivo en períodos de baja demanda y dimensionar la infraestructura de almacenamiento y generación. Para Tamil Nadu, donde el clima y la dinámica industrial afectan el consumo, un modelo calibrado localmente aporta valor operativo y de política. Además, el estudio integra factores socio-económicos y climáticos poco considerados en la literatura regional, y busca un balance entre interpretabilidad y precisión, condición clave para la adopción por parte de los decisores del sector eléctrico.

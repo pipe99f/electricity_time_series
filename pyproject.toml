@@ -1,0 +1,17 @@
+[project]
+name = "electricity-time-series"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+    "statsmodels>=0.14",
+    "pmdarima>=2.0",
+    "scikit-learn>=1.4",
+    "xgboost>=2.0",
+    "ipykernel>=6.29",
+]

@@ -1,0 +1,68 @@
+\documentclass[a4paper,11pt]{article}
+
+% Codificación e idioma
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla,es-noshorthands]{babel}
+% Hace que \% sea el signo de porcentaje plano (evita el error de
+% babel-spanish "Incompatible glue units" cuando aparece en modo mat.)
+\spanishplainpercent
+
+% Geometría
+\usepackage[a4paper,margin=2.5cm]{geometry}
+
+% Matemáticas
+\usepackage{amsmath,amssymb,mathtools}
+
+% Gráficos y tablas
+\usepackage{graphicx}
+\graphicspath{{assets/}{./}}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{float}
+
+% Tipografía y listas
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{enumitem}
+\setlist[itemize]{leftmargin=*,itemsep=2pt,topsep=2pt}
+\setlist[enumerate]{leftmargin=*,itemsep=2pt,topsep=2pt}
+
+% Color
+\usepackage{xcolor}
+
+% Bibliografía
+\usepackage{natbib}
+\bibliographystyle{plainnat}
+
+% Enlaces (cargar al final)
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=black,urlcolor=blue!75!black,citecolor=blue!75!black,
+            pdftitle={Informe: Enhanced Prediction of Electricity Peak Load},
+            pdfauthor={Grupo de trabajo}}
+
+% Espaciado de párrafos (sin sangría francesa)
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+
+% Cajas de nota y aviso
+\newcommand{\notebox}[1]{\par\medskip\noindent%
+  \colorbox{blue!8}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{\textbf{Nota.} #1}}%
+  \par\medskip}
+\newcommand{\warnbox}[1]{\par\medskip\noindent%
+  \colorbox{orange!18}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{#1}}%
+  \par\medskip}
+
+\begin{document}
+
+\input{sections/01-portada}
+\newpage
+\input{sections/02-metodologia}
+\newpage
+\input{sections/03-analisis-resultados}
+\newpage
+\input{sections/04-aplicacion}
+\newpage
+\input{sections/05-conclusiones}
+
+\end{document}

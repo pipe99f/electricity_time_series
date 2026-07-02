@@ -1,0 +1,71 @@
+% =====================================================================
+% SEGUNDA Y TERCERA PÁGINA: metodología estadística empleada.
+% =====================================================================
+
+\section*{Metodología estadística}
+
+\subsection*{Descripción del conjunto de datos}
+
+El conjunto se obtuvo del portal de datos abiertos de la empresa eléctrica estatal de Tamil Nadu. Comprende registros mensuales de enero de 2018 a diciembre de 2022 e incluye: fecha; consumo total (MWh); consumo sectorial (residencial, industrial, agrícola, comercial); demanda máxima (MW); energía suministrada (MWh); número de consumidores por sector; y variables meteorológicas (temperatura media, humedad y precipitación) del Tamil Nadu State Climate Portal.
+
+\notebox{El resumen del artículo indica datos de abril de 2006 a marzo de 2023, mientras que la sección 3.1 los restringe a 2018 a 2022. Esta inconsistencia se retoma en el análisis de resultados.}
+
+\subsection*{Preprocesamiento de datos}
+
+\begin{itemize}
+  \item \textbf{Imputación de valores faltantes:} combinación de interpolación lineal (para brechas cortas) y \textit{forward-fill} (para brechas largas).
+  \item \textbf{Detección de atípicos:} $Z$-score (umbral $|z|>3$) y rango intercuartílico (IQR); los valores extremos se \textit{winsorizaron} en los percentiles 5 y 95.
+  \item \textbf{Normalización:} Min-Max al rango $[0,1]$ para equiparar escalas.
+  \item \textbf{Codificación temporal cíclica:} seno y coseno para mes y año, preservando la periodicidad:
+\end{itemize}
+\[ \text{month}_{\sin}=\sin\!\left(\frac{2\pi\cdot\text{month}}{12}\right),\qquad
+   \text{month}_{\cos}=\cos\!\left(\frac{2\pi\cdot\text{month}}{12}\right) \]
+
+\subsection*{Ingeniería de variables}
+
+\begin{itemize}
+  \item \textbf{Rezagos (\textit{lags}):} 1, 3 y 6 meses del consumo y de la demanda máxima.
+  \item \textbf{Medias móviles (\textit{rolling}):} medias de 3 y 6 meses.
+  \item \textbf{Razones sectoriales:} residencial/industrial y comercial/total.
+  \item \textbf{Términos de interacción:} Temperatura $\times$ Humedad y Desviación de precipitación $\times$ Energía suministrada.
+  \item \textbf{Métricas de cambio porcentual:} variación mensual del consumo y de la demanda.
+\end{itemize}
+
+\subsection*{Modelos estadísticos y de aprendizaje automático}
+
+\noindent\textbf{Modelos basados en variables (regresión).}
+
+\textit{Lasso} (regularización L1):
+\[ \hat{\beta}=\arg\min_{\beta}\left\{\sum_{i=1}^{n}(y_i-X_i\beta)^2+\lambda\|\beta\|_1\right\} \]
+
+\textit{Ridge} (regularización L2):
+\[ \hat{\beta}=\arg\min_{\beta}\left\{\sum_{i=1}^{n}(y_i-X_i\beta)^2+\lambda\|\beta\|_2^2\right\} \]
+
+\textit{XGBoost} (\textit{ensemble tree boosting}):
+\[ \hat{y}_i=\sum_{k=1}^{K} f_k(x_i),\qquad \Omega(f)=\gamma T+\frac{1}{2}\lambda\|w\|^2 \]
+
+\noindent\textbf{Modelos temporales.}
+
+\textit{ARIMA$(p,d,q)$:}
+\[ \phi(B)(1-B)^d\, y_t=\theta(B)\,\varepsilon_t \]
+con $\phi(B)=1-\phi_1 B-\cdots-\phi_p B^p$ y $\theta(B)=1+\theta_1 B+\cdots+\theta_q B^q$, donde $B$ es el operador de retroceso.
+
+\textit{VAR$(p)$} (para entrada multivariable):
+\[ Y_t=c+\sum_{i=1}^{p} A_i\, Y_{t-i}+\varepsilon_t,\qquad Y_t\in\mathbb{R}^k,\; A_i\in\mathbb{R}^{k\times k},\; \varepsilon_t\sim\mathcal{N}(0,\Sigma) \]
+
+\subsection*{Algoritmo híbrido propuesto}
+
+El marco combina un componente de aprendizaje automático $M_{ML}\in\{\text{Lasso, Ridge, XGBoost}\}$ y uno de series temporales $M_{TS}\in\{\text{ARIMA, VAR}\}$. Sobre la matriz de variables enriquecida $X'$ se obtiene $\hat{y}_{ML}$; sobre la serie $y_t$ se obtiene $\hat{y}_{TS}$. La predicción final se selecciona minimizando una métrica de error $\varepsilon$ (RMSE o MAE) \citep{zhang2003}:
+\[ \hat{y}_{final}=\arg\min_{\hat{y}\in\{\hat{y}_{ML},\,\hat{y}_{TS}\}}\varepsilon(y,\hat{y}) \]
+
+\subsection*{Validación y selección de modelos}
+
+\begin{itemize}
+  \item Partición 80/20: entrenamiento 2018 a 2021, prueba 2022.
+  \item \textbf{Walk-forward} (\textit{rolling-origin}) para ARIMA y VAR, preservando la integridad temporal.
+  \item \textbf{Grid search + $k$-fold} ($k=5$) para Lasso, Ridge y XGBoost; el parámetro $\lambda$ se optimizó en escala logarítmica.
+  \item \textbf{Estacionariedad:} test ADF (se diferenció si $p>0.05$).
+  \item \textbf{Selección de rezagos:} AIC, BIC y HQIC, apoyada en ACF y PACF.
+  \item \textbf{Diagnóstico de residuos:} test de Ljung-Box.
+  \item \textbf{Métricas de desempeño:} MAE, RMSE, MAPE e intervalos de confianza al 95\,\%.
+\end{itemize}

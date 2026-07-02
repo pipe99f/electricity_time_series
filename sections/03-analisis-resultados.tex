@@ -1,0 +1,92 @@
+% =====================================================================
+% CUARTA PÁGINA: análisis de los resultados presentados en el artículo.
+% =====================================================================
+
+\section*{Análisis de los resultados}
+
+\subsection*{Resultados reportados}
+
+Las tablas 1 y 2 del artículo resumen el desempeño de los modelos de series temporales sobre el conjunto de prueba (2022). La tabla~\ref{tab:ts} los reúne:
+
+\begin{table}[H]
+\centering
+\caption{Desempeño de los modelos de series temporales (tablas 1 y 2 del artículo).}
+\label{tab:ts}
+\begin{tabular}{lcc}
+\toprule
+Métrica & VAR & ARIMA \\
+\midrule
+MAE  & 150{,}25 & 120{,}50 \\
+RMSE & 180{,}42 & 140{,}67 \\
+MAPE & 7{,}82\,\% & 6{,}28\,\% \\
+IC 95\,\% & [14802, 16607, 18411{,}7] & [14500, 16200, 17800{,}8] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+ARIMA supera a VAR en todas las métricas: menor MAE (120{,}50 frente a 150{,}25), menor RMSE (140{,}67 frente a 180{,}42) y menor MAPE ($6{,}28\,\%$ frente a $7{,}82\,\%$), con intervalos de confianza más estrechos. La figura~\ref{fig:peak} muestra la evolución del pico de demanda a lo largo del período estudiado.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\linewidth]{fig1_peak_demand.png}
+\caption{Demanda máxima de electricidad por año (figura 1 del artículo original).}
+\label{fig:peak}
+\end{figure}
+
+La tabla~\ref{tab:summary} incorpora el modelo híbrido propuesto, y la tabla~\ref{tab:full} extiende la comparación a todos los modelos y a estudios previos \citep{kong2019,pandoh2021}.
+
+\begin{table}[H]
+\centering
+\caption{Resumen de hallazgos (tabla 3 del artículo).}
+\label{tab:summary}
+\begin{tabular}{lcccl}
+\toprule
+Modelo & MAE & RMSE & MAPE & Ranking \\
+\midrule
+Híbrido propuesto & 85{,}27  & 112{,}35 & 3{,}82\,\% & Mejor \\
+ARIMA             & 120{,}50 & 140{,}67 & 6{,}28\,\% & Segundo \\
+VAR               & 150{,}25 & 180{,}42 & 7{,}82\,\% & Tercero \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Comparación entre el modelo propuesto, modelos base y estudios previos (tabla 4 del artículo).}
+\label{tab:full}
+\begin{tabular}{lccc}
+\toprule
+Modelo / Estudio & RMSE & MAE & MAPE (\%) \\
+\midrule
+Híbrido propuesto  & 112{,}35 & 85{,}27  & 3{,}82 \\
+XGBoost            & 125{,}87 & 95{,}14  & 4{,}35 \\
+Pandoh et al. (2021) & 128{,}67 & 97{,}53  & 4{,}40 \\
+ARIMA              & 138{,}46 & 102{,}28 & 4{,}92 \\
+VAR                & 140{,}82 & 104{,}37 & 5{,}03 \\
+Ridge              & 142{,}33 & 107{,}84 & 5{,}09 \\
+Lasso              & 145{,}62 & 110{,}45 & 5{,}21 \\
+Kong et al. (2019) & 152{,}13 & 115{,}64 & 5{,}85 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Análisis crítico}
+
+\begin{enumerate}
+  \item \textbf{Contradicción sobre el modelo ganador.} El resumen afirma que \textit{``ARIMA achieved the lowest MAPE (1.26\%), outperforming VAR and hybrid approaches''}. Sin embargo, las tablas~\ref{tab:summary} y~\ref{tab:full} reportan que el modelo híbrido propuesto es el mejor (MAPE $3{,}82\,\%$), con ARIMA en segundo lugar ($6{,}28\,\%$ en la tabla~\ref{tab:summary} / $4{,}92\,\%$ en la tabla~\ref{tab:full}). El resumen contradice directamente las tablas.
+  \item \textbf{Tres valores distintos de MAPE para ARIMA.} Aparece como $1{,}26\,\%$ (resumen), $6{,}28\,\%$ (tablas 2 y 3) y $4{,}92\,\%$ (tabla 4). Esta discrepancia compromete la reproducibilidad y dificulta la comparación con otros estudios.
+  \item \textbf{Inconsistencia en el período de datos.} El resumen indica abril de 2006 a marzo de 2023 (17 años); la sección 3.1 indica enero de 2018 a diciembre de 2022 (5 años). La diferencia afecta la interpretación del tamaño muestral y de la robustez de los modelos.
+  \item \textbf{Horizonte de pronóstico.} La tabla 4 etiqueta los resultados como \textit{``24h ahead''}, pero el resto del artículo trabaja con datos mensuales. Esta incongruencia sugiere el posible reúso de resultados provenientes de otro experimento.
+  \item \textbf{Patrones de error.} Ambos modelos fallan más en meses anómalos (olas de calor, monzones atípicos) y en meses de transición (abril a junio y octubre a diciembre), lo que motiva la incorporación de predictores meteorológicos en tiempo real dentro del marco híbrido. La figura~\ref{fig:comparison} ilustra el desempeño comparativo de todos los modelos.
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\linewidth]{fig4_comparison.png}
+\caption{Desempeño comparativo de los modelos de pronóstico (figura 4 del artículo original).}
+\label{fig:comparison}
+\end{figure}
+
+\subsection*{Valor para la toma de decisiones}
+
+Pese a las inconsistencias señaladas, el artículo evidencia que un ARIMA bien calibrado ofrece una solución operativa confiable para el pronóstico de corto plazo, y que los modelos híbridos pueden reducir el error cuando se incorporan variables exógenas. Los intervalos al 95\,\% del modelo ARIMA respaldan decisiones de planificación y de mantenimiento preventivo en períodos de baja demanda.
