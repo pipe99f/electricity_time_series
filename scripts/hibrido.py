@@ -1,119 +1,193 @@
-import pandas as pd
+"""Modelo Híbrido (ARIMA + XGBoost) para el pico mensual de consumo (Países Bajos).
+
+Replica la metodología del artículo: Suriya & Agusthiyar (2026), ZANCO J. Pure
+Appl. Sci. 38(2). Combina predicciones de series temporales (ARIMA) con
+aprendizaje automático basado en características (XGBoost), seleccionando
+dinámicamente el mejor pronóstico paso a paso.
+"""
+
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
+import pandas as pd
+import matplotlib.pyplot as plt
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+import pmdarima as pm
 from xgboost import XGBRegressor
-from statsmodels.tsa.arima.model import ARIMA
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.preprocessing import MinMaxScaler
 
-# ==========================================
-# 1. CARGA Y PREPARACIÓN DE DATOS
-# ==========================================
-# Cargando los datos desde la carpeta 'data' de tu repositorio
-df = pd.read_csv('data/gold_netherlands.csv')
-
-# Asegurarnos de que la fecha es el índice y está ordenada
-df['fecha'] = pd.to_datetime(df['fecha'])
-df = df.sort_values('fecha').set_index('fecha')
-
-# Manejo de valores nulos para todas las variables
-df = df.interpolate(method='linear').ffill()
-
-# ==========================================
-# 2. INGENIERÍA DE CARACTERÍSTICAS
-# ==========================================
-# Codificación cíclica del tiempo
-df['mes_seno'] = np.sin(2 * np.pi * df.index.month / 12)
-df['mes_coseno'] = np.cos(2 * np.pi * df.index.month / 12)
-
-# Variables rezagadas (Lags)
-df['lag_1'] = df['consumo_maximo'].shift(1)
-df['lag_3'] = df['consumo_maximo'].shift(3)
-df['lag_6'] = df['consumo_maximo'].shift(6)
-
-# Promedios móviles
-df['rolling_3_mean'] = df['consumo_maximo'].rolling(window=3).mean()
-
-# Interacciones climáticas
-df['temp_humedad_interaccion'] = df['temperatura_promedio'] * df['humedad_promedio']
-
-# Eliminar las primeras filas que quedaron vacías por los lags
-df = df.dropna()
-
-# ==========================================
-# 3. NORMALIZACIÓN
-# ==========================================
-scaler = MinMaxScaler()
-columnas_numericas = ['temperatura_promedio', 'humedad_promedio', 'poblacion_urbana', 
-                      'lag_1', 'lag_3', 'lag_6', 'rolling_3_mean', 'temp_humedad_interaccion']
-
-# Normalizamos solo las variables predictoras (dejamos el 'consumo_maximo' en su escala original para interpretar mejor el error final)
-df[columnas_numericas] = scaler.fit_transform(df[columnas_numericas])
-
-# ==========================================
-# 4. DIVISIÓN DE DATOS (TRAIN / TEST)
-# ==========================================
-# Separamos los últimos 12 meses para probar el modelo
-train = df.iloc[:-12]
-test = df.iloc[-12:]
-
-# Variables independientes (X) y dependiente (y)
-X_train = train[columnas_numericas + ['mes_seno', 'mes_coseno']]
-y_train = train['consumo_maximo']
-X_test = test[columnas_numericas + ['mes_seno', 'mes_coseno']]
-y_test = test['consumo_maximo']
-
-# ==========================================
-# 5. ENTRENAMIENTO DE LOS MODELOS
-# ==========================================
-
-# --- Componente 1: Machine Learning (XGBoost) ---
-print("Entrenando XGBoost...")
-modelo_ml = XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=4, random_state=42)
-modelo_ml.fit(X_train, y_train)
-predicciones_ml = modelo_ml.predict(X_test)
-
-# --- Componente 2: Series Temporales (SARIMA) ---
-print("Entrenando SARIMA(0,1,1)(1,1,0)[12]...")
-modelo_ts = ARIMA(
-    y_train, 
-    order=(0, 1, 1), 
-    seasonal_order=(1, 1, 0, 12)
+from common import (
+    chdir_root, load_gold, split_by_year, adf_report, ljung_box,
+    compute_metrics, save_metrics, plot_forecast,
+    ASSETS, TEST_YEAR,
 )
-modelo_ts_fit = modelo_ts.fit()
-predicciones_ts = modelo_ts_fit.forecast(steps=len(test)).values
 
-# ==========================================
-# 6. ENSAMBLE HÍBRIDO (SELECCIÓN DINÁMICA)
-# ==========================================
-print("\n--- Resultados de la Selección Dinámica ---")
-predicciones_finales = []
-origen_prediccion = [] # Para guardar quién ganó cada mes
 
-for i in range(len(test)):
-    # Calculamos el error absoluto de cada modelo para el mes 'i'
-    error_ml = abs(predicciones_ml[i] - y_test.iloc[i])
-    error_ts = abs(predicciones_ts[i] - y_test.iloc[i])
+def determine_d(y: pd.Series, max_d: int = 2):
+    """Itera el ADF diferenciando hasta estacionariedad (o max_d). Devuelve (d, yd)."""
+    print("[2] Test ADF:")
+    p = adf_report(y, "nivel")
+    d, yd = 0, y
+    while p > 0.05 and d < max_d:
+        d += 1
+        yd = yd.diff().dropna()
+        p = adf_report(yd, f"diff d={d}")
+    print(f"    -> orden de integración d={d}")
+    return d, yd
+
+
+def plot_acf_pacf(yd: pd.Series, path) -> None:
+    """Guarda ACF/PACF de la serie (diferenciada si d>0) para inspección visual."""
+    lags = min(15, len(yd) // 2 - 1)
+    fig, ax = plt.subplots(1, 2, figsize=(10, 3.2))
+    plot_acf(yd, lags=lags, ax=ax[0])
+    plot_pacf(yd, lags=lags, ax=ax[1], method="ywm")
+    fig.tight_layout()
+    fig.savefig(path, dpi=130)
+    plt.close(fig)
+
+
+def select_order_arima(train, d: int):
+    """Selecciona (p,d,q)(P,D,Q) por AIC con pmdarima (estacional m=12)."""
+    auto = pm.auto_arima(
+        train, seasonal=True, m=12, d=d, trace=True, stepwise=True,
+        error_action="ignore", suppress_warnings=True,
+    )
+    print(f"    Orden elegido: order={auto.order} seasonal={auto.seasonal_order}  AIC={auto.aic():.1f}")
+    return auto.order, auto.seasonal_order, float(auto.aic())
+
+
+def forecast_arima(history, order, seasonal, h: int = 1):
+    """Primitiva pronosticadora (reutilizable por el híbrido)."""
+    m = pm.ARIMA(order=order, seasonal_order=seasonal,
+                 suppress_warnings=True, error_action="ignore")
+    m.fit(np.asarray(history, dtype=float).ravel())
+    fc, conf = m.predict(n_periods=h, return_conf_int=True, alpha=0.05)
+    return float(fc[0]), float(conf[0][0]), float(conf[0][1])
+
+
+def build_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Aplica la ingeniería de características descrita en el paper."""
+    df = df.copy()
     
-    # El híbrido elige la predicción con el menor error
-    if error_ml < error_ts:
-        predicciones_finales.append(predicciones_ml[i])
-        origen_prediccion.append("XGBoost")
-        print(f"Mes {i+1} ({test.index[i].strftime('%Y-%m')}): XGBoost gana (Error menor)")
-    else:
-        predicciones_finales.append(predicciones_ts[i])
-        origen_prediccion.append("SARIMA")
-        print(f"Mes {i+1} ({test.index[i].strftime('%Y-%m')}): SARIMA gana (Error menor)")
+    # Manejo de nulos general
+    df = df.interpolate(method='linear').ffill()
+    
+    # Variables cíclicas
+    df['mes_seno'] = np.sin(2 * np.pi * df.index.month / 12)
+    df['mes_coseno'] = np.cos(2 * np.pi * df.index.month / 12)
+    
+    # Lags y Promedios móviles
+    df['lag_1'] = df['peak_load'].shift(1)
+    df['lag_3'] = df['peak_load'].shift(3)
+    df['lag_6'] = df['peak_load'].shift(6)
+    df['rolling_3_mean'] = df['peak_load'].rolling(window=3).mean()
+    
+    # Interacción climática (asegúrate de tener estas columnas, ajusta los nombres si es necesario)
+    if 'temperatura_promedio' in df.columns and 'humedad_promedio' in df.columns:
+        df['temp_humedad'] = df['temperatura_promedio'] * df['humedad_promedio']
+        
+    return df.dropna()
 
-# ==========================================
-# 7. EVALUACIÓN FINAL
-# ==========================================
-rmse_final = np.sqrt(mean_squared_error(y_test, predicciones_finales))
-mae_final = mean_absolute_error(y_test, predicciones_finales)
 
-print("\n==========================================")
-print("RESUMEN DEL MODELO HÍBRIDO")
-print("==========================================")
-print(f"RMSE Final: {rmse_final:.2f}")
-print(f"MAE Final:  {mae_final:.2f}")
-print(f"Predicciones aportadas por XGBoost: {origen_prediccion.count('XGBoost')}/12")
-print(f"Predicciones aportadas por SARIMA:  {origen_prediccion.count('SARIMA')}/12")
+def run_hybrid() -> dict:
+    """Orquesta el pipeline completo del modelo híbrido."""
+    
+    # 1) Carga de todas las variables necesarias (ajusta las columnas según tu CSV)
+    cols_to_load = ["peak_load", "temperatura_promedio", "humedad_promedio", "poblacion_urbana"]
+    df = load_gold(cols=cols_to_load)
+    print(f"[1] Dataset cargado: {len(df)} obs ({df.index[0].date()} -> {df.index[-1].date()})")
+
+    # 2) Ingeniería de Características
+    df_feat = build_features(df)
+    
+    # Definir variables predictoras numéricas (excluyendo target y cíclicas temporales)
+    num_cols = [c for c in df_feat.columns if c not in ['peak_load', 'mes_seno', 'mes_coseno']]
+    
+    # Normalización
+    scaler = MinMaxScaler()
+    df_feat[num_cols] = scaler.fit_transform(df_feat[num_cols])
+    features = num_cols + ['mes_seno', 'mes_coseno']
+
+    print(f"[2] Ingeniería de características completada. Variables generadas: {len(features)}")
+
+    # 3) Separar en Train y Test usando tu función
+    train_df, test_df = split_by_year(df_feat)
+    y_train = train_df["peak_load"]
+    print(f"[3] Split (train: {len(train_df)} obs, test: {len(test_df)} obs)")
+
+    # 4) Estacionariedad y Configuración ARIMA
+    print("[4] Analizando componente ARIMA...")
+    d, yd = determine_d(y_train)
+    plot_acf_pacf(yd, ASSETS / "hybrid_arima_acf_pacf.png")
+    order, seasonal, _ = select_order_arima(y_train, d)
+
+    # 5) Bucle Walk-Forward Híbrido (Custom para soportar matriz X)
+    print(f"[5] Walk-forward dinámico híbrido sobre {TEST_YEAR} ({len(test_df)} meses)...")
+    
+    history_df = train_df.copy()
+    preds_final, lo_final, hi_final = [], [], []
+    wins_ml, wins_ts = 0, 0
+
+    for i in range(len(test_df)):
+        # Configurar datos del paso actual
+        X_train_step = history_df[features]
+        y_train_step = history_df["peak_load"]
+        X_test_step = test_df[features].iloc[[i]]
+        y_true = test_df["peak_load"].iloc[i]
+
+        # Componente 1: XGBoost
+        model_ml = XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=4, random_state=42)
+        model_ml.fit(X_train_step, y_train_step)
+        pred_ml = float(model_ml.predict(X_test_step)[0])
+
+        # Componente 2: ARIMA
+        pred_ts, lo_ts, hi_ts = forecast_arima(y_train_step, order, seasonal, h=1)
+
+        # Selección Dinámica (Minimización del error del paso actual)
+        err_ml = abs(pred_ml - y_true)
+        err_ts = abs(pred_ts - y_true)
+
+        if err_ml < err_ts:
+            preds_final.append(pred_ml)
+            # Aproximación del intervalo de confianza para ML (±5%)
+            lo_final.append(pred_ml * 0.95)
+            hi_final.append(pred_ml * 1.05)
+            wins_ml += 1
+        else:
+            preds_final.append(pred_ts)
+            lo_final.append(lo_ts)
+            hi_final.append(hi_ts)
+            wins_ts += 1
+
+        # Actualizar el historial para la próxima iteración (Agrega la fila real de test)
+        history_df = pd.concat([history_df, test_df.iloc[[i]]])
+
+    # 6) Métricas
+    m = compute_metrics(test_df["peak_load"], preds_final)
+    print("\n--- RESUMEN HÍBRIDO ---")
+    print(f"[6] MAE={m['MAE']:.2f}  RMSE={m['RMSE']:.2f}  MAPE={m['MAPE']:.2f}%")
+    print(f"    Gana XGBoost: {wins_ml} meses | Gana ARIMA: {wins_ts} meses")
+    save_metrics("hybrid", m)
+
+    # 7) Gráfico
+    plot_forecast(
+        df_feat["peak_load"], 
+        preds_final, 
+        test_df.index, 
+        lo_final, 
+        hi_final,
+        "Híbrido - Pronóstico del pico mensual (Países Bajos)",
+        ASSETS / "hybrid_forecast.png", 
+        label="Pronóstico Híbrido"
+    )
+    print("[7] Gráfico -> assets/hybrid_forecast.png")
+    
+    return m
+
+
+def main() -> None:
+    chdir_root()
+    run_hybrid()
+
+
+if __name__ == "__main__":
+    main()
