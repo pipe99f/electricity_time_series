@@ -1,255 +1,269 @@
-from pathlib import Path
+"""Modelo Ridge para el pico mensual de consumo de Países Bajos.
 
-import matplotlib.pyplot as plt
+Incluye ingeniería de variables, selección de lambda y validación
+walk-forward sobre 2024.
+"""
+
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Ridge
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+import matplotlib.pyplot as plt
+
+from sklearn.linear_model import Ridge, RidgeCV
+from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from common import (
+    chdir_root,
+    load_gold,
+    split_by_year,
+    compute_metrics,
+    save_metrics,
+    ASSETS,
+    TEST_YEAR,
+)
 
-# Rutas
-ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / "data" / "gold_netherlands.csv"
-ASSETS = ROOT / "assets"
-ASSETS.mkdir(exist_ok=True)
 
-
-# Variables del modelo
 FEATURES = [
     "avg_temperature",
     "humidity",
     "urban_population",
     "year",
-    "month_sin",
-    "month_cos",
+    "mes_seno",
+    "mes_coseno",
     "lag_1",
     "lag_3",
     "lag_6",
     "rolling_3",
     "rolling_6",
-    "temp_humidity",
-    "pct_change_lagged",
+    "temp_humedad",
+    "pct_change",
 ]
 
 
-def mape(y_true, y_pred):
-    """Error porcentual absoluto medio."""
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
+def build_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Crea las variables utilizadas por Ridge."""
 
-    return np.mean(
-        np.abs((y_true - y_pred) / y_true)
+    df = df.copy().interpolate().ffill()
+
+    df["year"] = df.index.year
+    df["mes_seno"] = np.sin(2 * np.pi * df.index.month / 12)
+    df["mes_coseno"] = np.cos(2 * np.pi * df.index.month / 12)
+
+    df["lag_1"] = df["peak_load"].shift(1)
+    df["lag_2"] = df["peak_load"].shift(2)
+    df["lag_3"] = df["peak_load"].shift(3)
+    df["lag_6"] = df["peak_load"].shift(6)
+
+    # Promedios móviles usando solamente datos anteriores
+    past_peak = df["peak_load"].shift(1)
+
+    df["rolling_3"] = past_peak.rolling(3).mean()
+    df["rolling_6"] = past_peak.rolling(6).mean()
+
+    df["temp_humedad"] = (
+        df["avg_temperature"] * df["humidity"]
+    )
+
+    df["pct_change"] = (
+        (df["lag_1"] / df["lag_2"]) - 1
     ) * 100
 
-
-# ============================================================
-# 1. Cargar y limpiar los datos
-# ============================================================
-
-df = pd.read_csv(DATA)
-
-df["month"] = pd.to_datetime(df["month"])
-
-numeric_columns = [
-    "peak_load",
-    "avg_temperature",
-    "humidity",
-    "urban_population",
-]
-
-df[numeric_columns] = df[numeric_columns].apply(
-    pd.to_numeric,
-    errors="coerce",
-)
-
-df = (
-    df.sort_values("month")
-    .drop_duplicates("month")
-    .dropna()
-    .reset_index(drop=True)
-)
+    return df.dropna()
 
 
-# ============================================================
-# 2. Ingeniería de variables
-# ============================================================
+def select_lambda(train_df: pd.DataFrame) -> tuple[float, float]:
+    """Selecciona lambda mediante validación cruzada temporal."""
 
-df["year"] = df["month"].dt.year
-df["month_num"] = df["month"].dt.month
+    model_cv = Pipeline([
+        ("scaler", StandardScaler()),
+        (
+            "ridge",
+            RidgeCV(
+                alphas=np.logspace(-3, 5, 300),
+                cv=TimeSeriesSplit(n_splits=5),
+                scoring="neg_root_mean_squared_error",
+            ),
+        ),
+    ])
 
-df["month_sin"] = np.sin(
-    2 * np.pi * df["month_num"] / 12
-)
+    model_cv.fit(
+        train_df[FEATURES],
+        train_df["peak_load"],
+    )
 
-df["month_cos"] = np.cos(
-    2 * np.pi * df["month_num"] / 12
-)
+    ridge_cv = model_cv.named_steps["ridge"]
 
-df["lag_1"] = df["peak_load"].shift(1)
-df["lag_2"] = df["peak_load"].shift(2)
-df["lag_3"] = df["peak_load"].shift(3)
-df["lag_6"] = df["peak_load"].shift(6)
-
-# Solo se usa información pasada
-past_peak = df["peak_load"].shift(1)
-
-df["rolling_3"] = past_peak.rolling(3).mean()
-df["rolling_6"] = past_peak.rolling(6).mean()
-
-df["temp_humidity"] = (
-    df["avg_temperature"] * df["humidity"]
-)
-
-df["pct_change_lagged"] = (
-    (df["lag_1"] / df["lag_2"]) - 1
-) * 100
-
-df = df.dropna().reset_index(drop=True)
+    return float(ridge_cv.alpha_), float(-ridge_cv.best_score_)
 
 
-# ============================================================
-# 3. Entrenamiento y prueba
-# ============================================================
+def walk_forward_ridge(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    alpha: float,
+) -> pd.Series:
+    """Pronostica 2024 reestimando Ridge cada mes."""
 
-train = df[df["month"] < "2024-01-01"]
-test = df[df["month"] >= "2024-01-01"]
+    history = train_df.copy()
+    predictions = []
 
-X_train = train[FEATURES]
-y_train = train["peak_load"]
+    for date in test_df.index:
 
-X_test = test[FEATURES]
-y_test = test["peak_load"]
+        model = Pipeline([
+            ("scaler", StandardScaler()),
+            ("ridge", Ridge(alpha=alpha)),
+        ])
 
+        model.fit(
+            history[FEATURES],
+            history["peak_load"],
+        )
 
-# ============================================================
-# 4. Ajuste del modelo Ridge
-# ============================================================
+        prediction = model.predict(
+            test_df.loc[[date], FEATURES]
+        )[0]
 
-pipeline = Pipeline([
-    ("scaler", StandardScaler()),
-    ("ridge", Ridge()),
-])
+        predictions.append(float(prediction))
 
-search = GridSearchCV(
-    estimator=pipeline,
-    param_grid={
-        "ridge__alpha": np.logspace(-3, 5, 300)
-    },
-    scoring="neg_root_mean_squared_error",
-    cv=TimeSeriesSplit(n_splits=5),
-    n_jobs=-1,
-)
+        # Se agrega el mes real después de realizar la predicción
+        history = pd.concat([
+            history,
+            test_df.loc[[date]],
+        ])
 
-search.fit(X_train, y_train)
-
-model = search.best_estimator_
-predictions = model.predict(X_test)
-
-best_lambda = search.best_params_["ridge__alpha"]
-cv_rmse = -search.best_score_
-
-
-# ============================================================
-# 5. Métricas
-# ============================================================
-
-mae = mean_absolute_error(y_test, predictions)
-
-rmse = np.sqrt(
-    mean_squared_error(y_test, predictions)
-)
-
-mape_value = mape(y_test, predictions)
-
-metrics = pd.DataFrame({
-    "Modelo": ["Ridge"],
-    "Lambda": [best_lambda],
-    "CV_RMSE": [cv_rmse],
-    "MAE": [mae],
-    "RMSE": [rmse],
-    "MAPE": [mape_value],
-})
-
-metrics.to_csv(
-    ASSETS / "metrics_ridge.csv",
-    index=False,
-)
+    return pd.Series(
+        predictions,
+        index=test_df.index,
+        name="predicted_ridge",
+    )
 
 
-# ============================================================
-# 6. Valores reales y predichos
-# ============================================================
+def run_ridge() -> dict:
+    """Ejecuta el pipeline completo del modelo Ridge."""
 
-comparison = pd.DataFrame({
-    "month": test["month"].to_numpy(),
-    "real": y_test.to_numpy(),
-    "predicted_ridge": predictions,
-})
+    # 1. Cargar datos
+    df = load_gold(cols=[
+        "peak_load",
+        "avg_temperature",
+        "humidity",
+        "urban_population",
+    ])
 
-comparison["absolute_error"] = np.abs(
-    comparison["real"]
-    - comparison["predicted_ridge"]
-)
+    print(
+        f"[1] Dataset: {len(df)} observaciones "
+        f"({df.index[0].date()} -> {df.index[-1].date()})"
+    )
 
-comparison["percentage_error"] = (
-    comparison["absolute_error"]
-    / comparison["real"]
-) * 100
+    # 2. Crear variables
+    df_features = build_features(df)
 
-comparison.to_csv(
-    ASSETS / "ridge_comparison.csv",
-    index=False,
-)
+    print(
+        f"[2] Variables creadas: {len(FEATURES)} | "
+        f"Observaciones útiles: {len(df_features)}"
+    )
+
+    # 3. Separar entrenamiento y prueba
+    train_df, test_df = split_by_year(df_features)
+
+    print(
+        f"[3] Train={len(train_df)} | "
+        f"Test={len(test_df)}"
+    )
+
+    # 4. Seleccionar lambda
+    alpha, cv_rmse = select_lambda(train_df)
+
+    print(
+        f"[4] Lambda óptimo={alpha:.4f} | "
+        f"CV-RMSE={cv_rmse:.2f}"
+    )
+
+    # 5. Validación walk-forward
+    predictions = walk_forward_ridge(
+        train_df,
+        test_df,
+        alpha,
+    )
+
+    # 6. Métricas
+    metrics = compute_metrics(
+        test_df["peak_load"],
+        predictions,
+    )
+
+    save_metrics("ridge", metrics)
+
+    print("\n--- RESUMEN RIDGE ---")
+    print(
+        f"MAE={metrics['MAE']:.2f} | "
+        f"RMSE={metrics['RMSE']:.2f} | "
+        f"MAPE={metrics['MAPE']:.2f}%"
+    )
+
+    # 7. Guardar resultados
+    comparison = pd.DataFrame({
+        "real": test_df["peak_load"],
+        "predicted_ridge": predictions,
+    })
+
+    comparison["error_absoluto"] = (
+        comparison["real"]
+        - comparison["predicted_ridge"]
+    ).abs()
+
+    comparison["error_porcentual"] = (
+        comparison["error_absoluto"]
+        / comparison["real"]
+    ) * 100
+
+    comparison.to_csv(
+        ASSETS / "ridge_comparison.csv"
+    )
+
+    # 8. Gráfico
+    plt.figure(figsize=(9, 5))
+
+    plt.plot(
+        test_df.index,
+        test_df["peak_load"],
+        marker="o",
+        label="Carga real",
+    )
+
+    plt.plot(
+        predictions.index,
+        predictions,
+        marker="o",
+        label="Predicción Ridge",
+    )
+
+    plt.xlabel("Mes")
+    plt.ylabel("Carga máxima")
+    plt.title(
+        f"Ridge - Pronóstico del pico mensual "
+        f"(Países Bajos, {TEST_YEAR})"
+    )
+
+    plt.xticks(rotation=45)
+    plt.legend()
+    plt.tight_layout()
+
+    plt.savefig(
+        ASSETS / "ridge_real_vs_predicted.png",
+        dpi=300,
+    )
+
+    plt.close()
+
+    print("[5] Resultados guardados en assets/")
+
+    return metrics
 
 
-# ============================================================
-# 7. Gráfico
-# ============================================================
-
-plt.figure(figsize=(9, 5))
-
-plt.plot(
-    comparison["month"],
-    comparison["real"],
-    marker="o",
-    label="Carga real",
-)
-
-plt.plot(
-    comparison["month"],
-    comparison["predicted_ridge"],
-    marker="o",
-    label="Predicción Ridge",
-)
-
-plt.xlabel("Mes")
-plt.ylabel("Carga máxima")
-plt.title("Carga máxima real y predicha con Ridge")
-plt.xticks(rotation=45)
-plt.legend()
-plt.tight_layout()
-
-plt.savefig(
-    ASSETS / "ridge_real_vs_predicted.png",
-    dpi=300,
-)
-
-plt.close()
+def main() -> None:
+    chdir_root()
+    run_ridge()
 
 
-# ============================================================
-# 8. Mostrar resultados
-# ============================================================
-
-print("\nModelo Ridge ejecutado correctamente")
-print(f"Lambda óptimo: {best_lambda:.3f}")
-print(f"CV-RMSE: {cv_rmse:.2f}")
-print(f"MAE: {mae:.2f}")
-print(f"RMSE: {rmse:.2f}")
-print(f"MAPE: {mape_value:.2f}%")
-
-print("\nPredicciones:")
-print(comparison)
+if __name__ == "__main__":
+    main()
