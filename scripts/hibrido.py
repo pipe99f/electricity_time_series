@@ -71,19 +71,19 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     # Manejo de nulos general
     df = df.interpolate(method='linear').ffill()
     
-    # Variables cíclicas
+    # Variables cíclicas (asumiendo que el índice es datetime mensual)
     df['mes_seno'] = np.sin(2 * np.pi * df.index.month / 12)
     df['mes_coseno'] = np.cos(2 * np.pi * df.index.month / 12)
     
-    # Lags y Promedios móviles
+    # Lags y Promedios móviles basados en peak_load
     df['lag_1'] = df['peak_load'].shift(1)
     df['lag_3'] = df['peak_load'].shift(3)
     df['lag_6'] = df['peak_load'].shift(6)
     df['rolling_3_mean'] = df['peak_load'].rolling(window=3).mean()
     
-    # Interacción climática (asegúrate de tener estas columnas, ajusta los nombres si es necesario)
-    if 'temperatura_promedio' in df.columns and 'humedad_promedio' in df.columns:
-        df['temp_humedad'] = df['temperatura_promedio'] * df['humedad_promedio']
+    # Interacción climática con tus nombres de variables
+    if 'avg_temperature' in df.columns and 'humidity' in df.columns:
+        df['temp_humedad'] = df['avg_temperature'] * df['humidity']
         
     return df.dropna()
 
@@ -91,8 +91,8 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 def run_hybrid() -> dict:
     """Orquesta el pipeline completo del modelo híbrido."""
     
-    # 1) Carga de todas las variables necesarias (ajusta las columnas según tu CSV)
-    cols_to_load = ["peak_load", "temperatura_promedio", "humedad_promedio", "poblacion_urbana"]
+    # 1) Carga de todas las variables con tus nombres exactos
+    cols_to_load = ["peak_load", "avg_temperature", "humidity", "urban_population"]
     df = load_gold(cols=cols_to_load)
     print(f"[1] Dataset cargado: {len(df)} obs ({df.index[0].date()} -> {df.index[-1].date()})")
 
@@ -109,7 +109,7 @@ def run_hybrid() -> dict:
 
     print(f"[2] Ingeniería de características completada. Variables generadas: {len(features)}")
 
-    # 3) Separar en Train y Test usando tu función
+    # 3) Separar en Train y Test
     train_df, test_df = split_by_year(df_feat)
     y_train = train_df["peak_load"]
     print(f"[3] Split (train: {len(train_df)} obs, test: {len(test_df)} obs)")
@@ -118,6 +118,8 @@ def run_hybrid() -> dict:
     print("[4] Analizando componente ARIMA...")
     d, yd = determine_d(y_train)
     plot_acf_pacf(yd, ASSETS / "hybrid_arima_acf_pacf.png")
+    
+    # Aquí puedes dejar auto_arima o forzar tus parámetros (0,1,1)(1,1,0,12)
     order, seasonal, _ = select_order_arima(y_train, d)
 
     # 5) Bucle Walk-Forward Híbrido (Custom para soportar matriz X)
@@ -148,7 +150,6 @@ def run_hybrid() -> dict:
 
         if err_ml < err_ts:
             preds_final.append(pred_ml)
-            # Aproximación del intervalo de confianza para ML (±5%)
             lo_final.append(pred_ml * 0.95)
             hi_final.append(pred_ml * 1.05)
             wins_ml += 1
@@ -158,7 +159,7 @@ def run_hybrid() -> dict:
             hi_final.append(hi_ts)
             wins_ts += 1
 
-        # Actualizar el historial para la próxima iteración (Agrega la fila real de test)
+        # Actualizar el historial
         history_df = pd.concat([history_df, test_df.iloc[[i]]])
 
     # 6) Métricas
