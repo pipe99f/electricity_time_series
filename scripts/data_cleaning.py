@@ -108,6 +108,7 @@ def main() -> None:
         "peak_load": df["energy_consumption"].resample("MS").max(),   # pico del mes
         "avg_temperature": df["avg_temperature"].resample("MS").mean(),
         "humidity": df["humidity"].resample("MS").mean(),
+        "urban_population": df["urban_population"].resample("MS").mean(),
     })
     monthly.index.name = "month"
     print(f"[6] Agregado mensual: {len(monthly)} meses "
