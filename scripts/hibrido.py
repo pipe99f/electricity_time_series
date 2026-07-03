@@ -49,7 +49,7 @@ def select_order_arima(train, d: int):
     """Selecciona (p,d,q)(P,D,Q) por AIC con pmdarima (estacional m=12)."""
     auto = pm.auto_arima(
         train, seasonal=True, m=12, d=d, trace=True, stepwise=True,
-        error_action="ignore", suppress_warnings=True,
+        suppress_warnings=True,
     )
     print(f"    Orden elegido: order={auto.order} seasonal={auto.seasonal_order}  AIC={auto.aic():.1f}")
     return auto.order, auto.seasonal_order, float(auto.aic())
@@ -57,8 +57,8 @@ def select_order_arima(train, d: int):
 
 def forecast_arima(history, order, seasonal, h: int = 1):
     """Primitiva pronosticadora (reutilizable por el híbrido)."""
-    m = pm.ARIMA(order=order, seasonal_order=seasonal,
-                 suppress_warnings=True, error_action="ignore")
+    # Se omitió 'error_action="ignore"' para evitar el FutureWarning de statsmodels
+    m = pm.ARIMA(order=order, seasonal_order=seasonal, suppress_warnings=True)
     m.fit(np.asarray(history, dtype=float).ravel())
     fc, conf = m.predict(n_periods=h, return_conf_int=True, alpha=0.05)
     return float(fc[0]), float(conf[0][0]), float(conf[0][1])
@@ -119,7 +119,6 @@ def run_hybrid() -> dict:
     d, yd = determine_d(y_train)
     plot_acf_pacf(yd, ASSETS / "hybrid_arima_acf_pacf.png")
     
-    # Aquí puedes dejar auto_arima o forzar tus parámetros (0,1,1)(1,1,0,12)
     order, seasonal, _ = select_order_arima(y_train, d)
 
     # 5) Bucle Walk-Forward Híbrido (Custom para soportar matriz X)
@@ -159,7 +158,7 @@ def run_hybrid() -> dict:
             hi_final.append(hi_ts)
             wins_ts += 1
 
-        # Actualizar el historial
+        # Actualizar el historial para la próxima predicción
         history_df = pd.concat([history_df, test_df.iloc[[i]]])
 
     # 6) Métricas
@@ -169,13 +168,18 @@ def run_hybrid() -> dict:
     print(f"    Gana XGBoost: {wins_ml} meses | Gana ARIMA: {wins_ts} meses")
     save_metrics("hybrid", m)
 
+    # Convertir las listas en Series de Pandas para evitar el ValueError en matplotlib
+    preds_series = pd.Series(preds_final, index=test_df.index)
+    lo_series = pd.Series(lo_final, index=test_df.index)
+    hi_series = pd.Series(hi_final, index=test_df.index)
+
     # 7) Gráfico
     plot_forecast(
         df_feat["peak_load"], 
-        preds_final, 
+        preds_series, 
         test_df.index, 
-        lo_final, 
-        hi_final,
+        lo_series, 
+        hi_series,
         "Híbrido - Pronóstico del pico mensual (Países Bajos)",
         ASSETS / "hybrid_forecast.png", 
         label="Pronóstico Híbrido"
