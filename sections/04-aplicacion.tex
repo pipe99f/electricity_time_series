@@ -10,9 +10,9 @@
 Se aplicó la metodología del artículo a un conjunto de datos sintético de consumo y clima (datos diarios de 20 países, 2020 a 2024). Siguiendo los lineamientos del artículo, se trabajó en frecuencia mensual y se eligió el país más pequeño del conjunto: Países Bajos. El proceso de limpieza deja un conjunto depurado mediante los siguientes pasos:
 
 \begin{itemize}
-  \item Filtrado por país, con la fecha como índice temporal, verificación de continuidad diaria y de valores faltantes (no había).
-  \item Agregación mensual: la variable objetivo es el pico de consumo mensual, es decir, el máximo diario de consumo en cada mes (análogo al pico de demanda del artículo); como exógenas se usan la temperatura y la humedad medias del mes.
-  \item Winsorización mensual (percentiles 5 y 95) sobre las series agregadas, de modo que solo se recorten los meses extremos.
+	\item Filtrado por país, con la fecha como índice temporal, verificación de continuidad diaria y de valores faltantes (no había).
+	\item Agregación mensual: la variable objetivo es el pico de consumo mensual, es decir, el máximo diario de consumo en cada mes (análogo al pico de demanda del artículo); como exógenas se usan la temperatura, la humedad y la población urbana medias del mes.
+	\item Winsorización mensual (percentiles 5 y 95) sobre las series agregadas, de modo que solo se recorten los meses extremos.
 \end{itemize}
 
 \noindent El resultado son 60 observaciones mensuales, de enero de 2020 a diciembre de 2024.
@@ -22,44 +22,46 @@ Se aplicó la metodología del artículo a un conjunto de datos sintético de co
 Se replicaron los pasos del artículo: test ADF de estacionariedad (diferenciando si $p>0{,}05$), selección de órdenes por AIC, validación walk-forward sobre 2024 (horizonte $h=1$, reestimando en cada paso) y métricas MAE, RMSE y MAPE.
 
 \begin{itemize}
-  \item ARIMA: los órdenes $(p,d,q)$ se seleccionaron automáticamente minimizando el AIC, con estacionalidad anual. El modelo elegido fue ARIMA$(0,1,1)(1,1,0)_{12}$, con AIC $510{,}7$. El test de Ljung-Box sobre los residuos arrojó $p=0{,}0007$, por lo que aún queda autocorrelación residual por capturar.
-  \item VAR: modelo multivariado sobre el pico de consumo, la temperatura y la humedad (diferenciadas para garantizar estacionariedad conjunta). El rezago se eligió por AIC y resultó ser 6 (AIC $12{,}6$). El Ljung-Box sobre los residuos del pico dio $p=0{,}62$, es decir, sin autocorrelación residual.
+	\item ARIMA: los órdenes $(p,d,q)$ se seleccionaron automáticamente minimizando el AIC, con estacionalidad anual. El modelo elegido fue ARIMA$(0,1,1)(1,1,0)_{12}$, con AIC $510{,}7$. El test de Ljung-Box sobre los residuos arrojó $p=0{,}0007$, por lo que aún queda autocorrelación residual por capturar.
+	\item VAR: modelo multivariado sobre el pico de consumo, la temperatura, la humedad y la población urbana (diferenciadas para garantizar estacionariedad conjunta). El rezago se eligió por AIC y resultó ser 6 (AIC $13{,}2$). El Ljung-Box sobre los residuos del pico dio $p=0{,}47$, es decir, sin autocorrelación residual.
 \end{itemize}
 
 \subsection*{Resultados}
 
 \begin{table}[H]
-\centering
-\caption{Desempeño comparativo de ARIMA y VAR sobre el pico mensual (Países Bajos, validación walk-forward 2024).}
-\label{tab:app}
-\begin{tabular}{lccccc}
-\toprule
-Modelo & Órdenes / rezago & AIC & MAE & RMSE & MAPE (\%) \\
-\midrule
-ARIMA & $(0,1,1)(1,1,0)_{12}$ & 510{,}7 & 324{,}71 & 373{,}99 & 2{,}64 \\
-VAR   & rezago 6 & 12{,}6 & 345{,}09 & 463{,}83 & 3{,}26 \\
-\bottomrule
-\end{tabular}
+	\centering
+	\caption{Desempeño comparativo de ARIMA y VAR sobre la demanda
+		máxima mensual (Países Bajos, validación walk-forward 2024).}
+	\label{tab:app}
+	\begin{tabular}{lccccc}
+		\toprule
+		Modelo & Órdenes / rezago      & AIC     & MAE      & RMSE     & MAPE (\%) \\
+		\midrule
+		ARIMA  & $(0,1,1)(1,1,0)_{12}$ & 510{,}7 & 324{,}71 & 373{,}99 & 2{,}64    \\
+		VAR    & rezago 6              & 13{,}2  & 397{,}90 & 453{,}56 & 3{,}64    \\
+		\bottomrule
+	\end{tabular}
 \end{table}
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.82\linewidth]{arima_forecast.png}
-\caption{Pronóstico ARIMA del pico mensual frente al real (Países Bajos, 2024) con banda de IC 95\,\%.}
-\label{fig:arima-forecast}
+	\centering
+	\includegraphics[width=0.82\linewidth]{arima_forecast.png}
+	\caption{Pronóstico ARIMA del pico mensual frente al real (Países Bajos, 2024) con banda de IC 95\,\%.}
+	\label{fig:arima-forecast}
 \end{figure}
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.82\linewidth]{var_forecast.png}
-\caption{Pronóstico VAR del pico mensual frente al real (Países Bajos, 2024).}
-\label{fig:var-forecast}
+	\centering
+	\includegraphics[width=0.82\linewidth]{var_forecast.png}
+	\caption{Pronóstico VAR del pico mensual frente al real (Países Bajos, 2024).}
+	\label{fig:var-forecast}
 \end{figure}
 
 \subsection*{Análisis de los resultados}
 
-El ARIMA superó al VAR en las tres métricas (MAPE $2{,}64\,\%$ frente a $3{,}26\,\%$), lo que coincide con lo reportado en el artículo, donde ARIMA también fue el modelo con menor error. En series univariadas con estacionalidad marcada, un ARIMA bien calibrado puede superar a un VAR multivariado cuando las exógenas no aportan información adicional; el propio artículo ya lo señalaba al notar que el VAR rinde mejor solo con predictores externos fuertemente acoplados.
+El ARIMA superó al VAR en MAE y MAPE ($2{,}64\,\%$ frente a $3{,}64\,\%$); solo en RMSE el VAR fue levemente menor ($453{,}56$ frente a $373{,}99$ ARIMA), aunque ese resultado proviene de un par de errores grandes del ARIMA en meses de transición. El resultado coincide con lo reportado en el artículo, donde ARIMA también fue el modelo con menor error. En series univariadas con estacionalidad marcada, un ARIMA bien calibrado puede superar a un VAR multivariado cuando las exógenas no aportan información adicional; el propio artículo ya lo señalaba al notar que el VAR rinde mejor solo con predictores externos fuertemente acoplados.
 
-El diagnóstico de residuos muestra una diferencia: el ARIMA deja autocorrelación residual (Ljung-Box $p<0{,}05$), lo que indica que su estructura estacional no captura toda la dinámica y podría mejorarse con términos SARIMA adicionales o incluyendo exógenas (SARIMAX). El VAR, en cambio, presenta residuos sin autocorrelación ($p=0{,}62$), con un ajuste más adecuado de la estructura, aunque con mayor error de pronóstico.
+Cabe destacar que la incorporación de la población urbana como cuarta serie del VAR, lejos de mejorar el pronóstico, lo empeoró ligeramente (el MAPE pasó de $3{,}26\,\%$ con tres series a $3{,}64\,\%$ con cuatro). Esto sugiere que, en estos datos sintéticos, la variable socioeconómica no aporta información relevante para el pico de demanda, o que la muestra mensual (60 observaciones) es demasiado corta para que el VAR aproveche sus interdependencias sin sobreajustar.
 
-Limitaciones de esta aplicación: los datos son sintéticos, con magnitudes de consumo poco realistas entre países; la muestra es corta (60 meses, 12 de prueba); y no se incluyeron los regresores Lasso, Ridge y XGBoost ni el modelo híbrido, lo cual queda como trabajo futuro para reproducir la comparación completa del artículo.
+El diagnóstico de residuos muestra una diferencia: el ARIMA deja autocorrelación residual (Ljung-Box $p<0{,}05$), lo que indica que su estructura estacional no captura toda la dinámica y podría mejorarse con términos SARIMA adicionales o incluyendo exógenas (SARIMAX). El VAR, en cambio, presenta residuos sin autocorrelación ($p=0{,}47$), con un ajuste más adecuado de la estructura, aunque con mayor error de pronóstico.
+

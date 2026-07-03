@@ -18,7 +18,7 @@ from common import (
     ASSETS, TEST_YEAR,
 )
 
-COLS = ["peak_load", "avg_temperature", "humidity"]
+COLS = ["peak_load", "avg_temperature", "humidity", "urban_population"]
 
 
 def adf_all(data: pd.DataFrame) -> None:

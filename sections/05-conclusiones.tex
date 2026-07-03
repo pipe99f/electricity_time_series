@@ -8,8 +8,8 @@
 
 \begin{enumerate}
   \item El artículo propone un marco híbrido que combina modelos estadísticos de series temporales (ARIMA, VAR) con regresores de aprendizaje automático (Lasso, Ridge, XGBoost) para el pronóstico del pico de demanda eléctrica en Tamil Nadu. Según sus resultados, el modelo híbrido es el de menor error (MAPE $3{,}82\,\%$), seguido por ARIMA ($6{,}28\,\%$) y VAR ($7{,}82\,\%$), aunque el resumen del artículo contradice estas tablas al atribuir el mejor desempeño a ARIMA (MAPE $1{,}26\,\%$).
-  \item La aplicación a datos mensuales de Países Bajos coincidió con lo reportado en el artículo: el ARIMA superó al VAR (MAPE $2{,}64\,\%$ frente a $3{,}26\,\%$). Esto muestra que, en series univariadas con estacionalidad marcada, un ARIMA bien calibrado es una base sólida y difícil de superar cuando las exógenas no aportan información adicional.
-  \item El diagnóstico de residuos mostró una diferencia: el ARIMA dejó autocorrelación residual (Ljung-Box $p<0{,}05$), lo que indica que su estructura estacional es insuficiente; el VAR, en cambio, presentó residuos sin autocorrelación ($p=0{,}62$), con un ajuste más adecuado de la dinámica, aunque con mayor error de pronóstico.
+  \item La aplicación a datos mensuales de Países Bajos coincidió con lo reportado en el artículo: el ARIMA superó al VAR (MAPE $2{,}64\,\%$ frente a $3{,}64\,\%$). Esto muestra que, en series univariadas con estacionalidad marcada, un ARIMA bien calibrado es una base sólida y difícil de superar cuando las exógenas, incluida la población urbana, no aportan información adicional.
+  \item El diagnóstico de residuos mostró una diferencia: el ARIMA dejó autocorrelación residual (Ljung-Box $p<0{,}05$), lo que indica que su estructura estacional es insuficiente; el VAR, en cambio, presentó residuos sin autocorrelación ($p=0{,}47$), con un ajuste más adecuado de la dinámica, aunque con mayor error de pronóstico.
   \item La ingeniería de variables (rezagos, medias móviles, términos de interacción entre clima y consumo) y la incorporación de predictores meteorológicos ayudan a reducir el error, como también sostiene el artículo.
 \end{enumerate}
 
