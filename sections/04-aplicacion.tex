@@ -1,8 +1,3 @@
-% =====================================================================
-% QUINTA Y SEXTA PÁGINA: aplicación de la metodología con datos y análisis
-% de los resultados correspondientes.
-% =====================================================================
-
 \section*{Aplicación de la metodología}
 
 \subsection*{Datos}
@@ -29,39 +24,41 @@ Se replicaron los pasos del artículo: test ADF de estacionariedad (diferenciand
 \subsection*{Resultados}
 
 \begin{table}[H]
-	\centering
-	\caption{Desempeño comparativo de ARIMA y VAR sobre la demanda
-		máxima mensual (Países Bajos, validación walk-forward 2024).}
-	\label{tab:app}
-	\begin{tabular}{lccccc}
-		\toprule
-		Modelo & Órdenes / rezago      & AIC     & MAE      & RMSE     & MAPE (\%) \\
-		\midrule
-		ARIMA  & $(0,1,1)(1,1,0)_{12}$ & 510{,}7 & 324{,}71 & 373{,}99 & 2{,}64    \\
-		VAR    & rezago 6              & 13{,}2  & 397{,}90 & 453{,}56 & 3{,}64    \\
-		\bottomrule
-	\end{tabular}
+\centering
+\caption{Comparación del desempeño de los modelos de pronóstico.}
+\label{tab:metricas_modelos}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Modelo} & \textbf{MAE} & \textbf{RMSE} & \textbf{MAPE (\%)} \\
+\midrule
+ARIMA   & 324.712 & 373.991 & 2.638 \\
+VAR     & 397.898 & 453.556 & 3.644 \\
+XGBoost & 574.077 & 877.169 & 6.106 \\
+Lasso   & 320.895 & 409.325 & 2.552 \\
+Ridge   & 400.730 & 473.262 & 3.289 \\
+Híbrido & \textbf{277.529} & \textbf{340.454} & \textbf{2.310} \\
+\bottomrule
+\end{tabular}
 \end{table}
 
 \begin{figure}[H]
 	\centering
-	\includegraphics[width=0.82\linewidth]{arima_forecast.png}
-	\caption{Pronóstico ARIMA del pico mensual frente al real (Países Bajos, 2024) con banda de IC 95\,\%.}
+	\includegraphics[width=0.82\linewidth]{hybrid_forecast.png}
+	\caption{Pronóstico hibrido del pico mensual frente al real (Países Bajos, 2024) con banda de IC 95\,\%.}
 	\label{fig:arima-forecast}
 \end{figure}
 
-\begin{figure}[H]
-	\centering
-	\includegraphics[width=0.82\linewidth]{var_forecast.png}
-	\caption{Pronóstico VAR del pico mensual frente al real (Países Bajos, 2024).}
-	\label{fig:var-forecast}
-\end{figure}
 
 \subsection*{Análisis de los resultados}
 
-El ARIMA superó al VAR en MAE y MAPE ($2{,}64\,\%$ frente a $3{,}64\,\%$); solo en RMSE el VAR fue levemente menor ($453{,}56$ frente a $373{,}99$ ARIMA), aunque ese resultado proviene de un par de errores grandes del ARIMA en meses de transición. El resultado coincide con lo reportado en el artículo, donde ARIMA también fue el modelo con menor error. En series univariadas con estacionalidad marcada, un ARIMA bien calibrado puede superar a un VAR multivariado cuando las exógenas no aportan información adicional; el propio artículo ya lo señalaba al notar que el VAR rinde mejor solo con predictores externos fuertemente acoplados.
+\section{Análisis de resultados}
 
-Cabe destacar que la incorporación de la población urbana como cuarta serie del VAR, lejos de mejorar el pronóstico, lo empeoró ligeramente (el MAPE pasó de $3{,}26\,\%$ con tres series a $3{,}64\,\%$ con cuatro). Esto sugiere que, en estos datos sintéticos, la variable socioeconómica no aporta información relevante para el pico de demanda, o que la muestra mensual (60 observaciones) es demasiado corta para que el VAR aproveche sus interdependencias sin sobreajustar.
+La Tabla \ref{tab:metricas_modelos} presenta la comparación del desempeño de los modelos implementados para el pronóstico de la demanda máxima mensual de electricidad en los Países Bajos, utilizando como criterios de evaluación las métricas MAE, RMSE y MAPE. De manera consistente con la metodología propuesta por Suriya y Agusthiyar (2026), se compararon modelos estadísticos, de aprendizaje automático y un enfoque híbrido con el fin de identificar la alternativa con mayor precisión predictiva.
 
-El diagnóstico de residuos muestra una diferencia: el ARIMA deja autocorrelación residual (Ljung-Box $p<0{,}05$), lo que indica que su estructura estacional no captura toda la dinámica y podría mejorarse con términos SARIMA adicionales o incluyendo exógenas (SARIMAX). El VAR, en cambio, presenta residuos sin autocorrelación ($p=0{,}47$), con un ajuste más adecuado de la estructura, aunque con mayor error de pronóstico.
+Los resultados muestran que el modelo híbrido obtuvo el mejor desempeño global, alcanzando un MAE de 277.529, un RMSE de 340.454 y un MAPE de 2.310, lo que evidencia una mayor capacidad para aproximar los valores reales de la demanda máxima mensual. Este comportamiento sugiere que la combinación de modelos estadísticos y técnicas de aprendizaje automático permite aprovechar las fortalezas de ambos enfoques, capturando tanto las dependencias temporales como las relaciones no lineales presentes en los datos.
 
+Entre los modelos individuales, Lasso presentó el menor error porcentual (MAPE = 2.552) y un MAE ligeramente inferior al de ARIMA, mientras que este último obtuvo el menor RMSE (373.991), lo que indica un comportamiento más estable frente a errores de mayor magnitud. Ridge obtuvo un desempeño intermedio, con un MAPE de 3.289, superando al modelo VAR (3.644), aunque ambos presentaron errores superiores a los obtenidos por Lasso y ARIMA.
+
+Por otra parte, el modelo VAR presentó un desempeño inferior al de los modelos estadísticos y de regularización, lo que sugiere que las relaciones multivariadas consideradas no fueron suficientes para representar completamente la dinámica de la demanda eléctrica en este conjunto de datos. El modelo XGBoost registró el mayor error, con un MAPE de 6.106 y un RMSE de 877.169, siendo el modelo con menor precisión entre los evaluados.
+
+En términos generales, los resultados obtenidos mantienen la tendencia observada en el artículo de referencia, donde el enfoque híbrido alcanzó la mayor precisión frente a los modelos individuales. No obstante, las diferencias en el desempeño de ARIMA, VAR, Lasso, Ridge y XGBoost respecto al estudio original evidencian que la eficacia de cada metodología depende de las características del conjunto de datos analizado. En este trabajo, realizado con datos de los Países Bajos, se confirma que la integración de modelos estadísticos y de aprendizaje automático constituye una estrategia robusta para mejorar la precisión en el pronóstico de la demanda máxima de electricidad.
