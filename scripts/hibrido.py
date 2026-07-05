@@ -57,7 +57,6 @@ def select_order_arima(train, d: int):
 
 def forecast_arima(history, order, seasonal, h: int = 1):
     """Primitiva pronosticadora (reutilizable por el híbrido)."""
-    # Se omitió 'error_action="ignore"' para evitar el FutureWarning de statsmodels
     m = pm.ARIMA(order=order, seasonal_order=seasonal, suppress_warnings=True)
     m.fit(np.asarray(history, dtype=float).ravel())
     fc, conf = m.predict(n_periods=h, return_conf_int=True, alpha=0.05)
@@ -71,7 +70,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     # Manejo de nulos general
     df = df.interpolate(method='linear').ffill()
     
-    # Variables cíclicas (asumiendo que el índice es datetime mensual)
+    # Variables cíclicas
     df['mes_seno'] = np.sin(2 * np.pi * df.index.month / 12)
     df['mes_coseno'] = np.cos(2 * np.pi * df.index.month / 12)
     
@@ -81,7 +80,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     df['lag_6'] = df['peak_load'].shift(6)
     df['rolling_3_mean'] = df['peak_load'].rolling(window=3).mean()
     
-    # Interacción climática con tus nombres de variables
+    # Interacción climática 
     if 'avg_temperature' in df.columns and 'humidity' in df.columns:
         df['temp_humedad'] = df['avg_temperature'] * df['humidity']
         
@@ -91,15 +90,13 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 def run_hybrid() -> dict:
     """Orquesta el pipeline completo del modelo híbrido."""
     
-    # 1) Carga de todas las variables con tus nombres exactos
     cols_to_load = ["peak_load", "avg_temperature", "humidity", "urban_population"]
     df = load_gold(cols=cols_to_load)
     print(f"[1] Dataset cargado: {len(df)} obs ({df.index[0].date()} -> {df.index[-1].date()})")
 
-    # 2) Ingeniería de Características
     df_feat = build_features(df)
     
-    # Definir variables predictoras numéricas (excluyendo target y cíclicas temporales)
+    # Definir variables predictoras numéricas
     num_cols = [c for c in df_feat.columns if c not in ['peak_load', 'mes_seno', 'mes_coseno']]
     
     # Normalización
@@ -109,19 +106,19 @@ def run_hybrid() -> dict:
 
     print(f"[2] Ingeniería de características completada. Variables generadas: {len(features)}")
 
-    # 3) Separar en Train y Test
+    #Separar en Train y Test
     train_df, test_df = split_by_year(df_feat)
     y_train = train_df["peak_load"]
     print(f"[3] Split (train: {len(train_df)} obs, test: {len(test_df)} obs)")
 
-    # 4) Estacionariedad y Configuración ARIMA
+    #Estacionariedad y Configuración ARIMA
     print("[4] Analizando componente ARIMA...")
     d, yd = determine_d(y_train)
     plot_acf_pacf(yd, ASSETS / "hybrid_arima_acf_pacf.png")
     
     order, seasonal, _ = select_order_arima(y_train, d)
 
-    # 5) Bucle Walk-Forward Híbrido (Custom para soportar matriz X)
+    #Bucle Walk-Forward Híbrido
     print(f"[5] Walk-forward dinámico híbrido sobre {TEST_YEAR} ({len(test_df)} meses)...")
     
     history_df = train_df.copy()
@@ -161,19 +158,18 @@ def run_hybrid() -> dict:
         # Actualizar el historial para la próxima predicción
         history_df = pd.concat([history_df, test_df.iloc[[i]]])
 
-    # 6) Métricas
+    # Métricas
     m = compute_metrics(test_df["peak_load"], preds_final)
     print("\n--- RESUMEN HÍBRIDO ---")
     print(f"[6] MAE={m['MAE']:.2f}  RMSE={m['RMSE']:.2f}  MAPE={m['MAPE']:.2f}%")
     print(f"    Gana XGBoost: {wins_ml} meses | Gana ARIMA: {wins_ts} meses")
     save_metrics("hybrid", m)
 
-    # Convertir las listas en Series de Pandas para evitar el ValueError en matplotlib
     preds_series = pd.Series(preds_final, index=test_df.index)
     lo_series = pd.Series(lo_final, index=test_df.index)
     hi_series = pd.Series(hi_final, index=test_df.index)
 
-    # 7) Gráfico
+    # Gráfico
     plot_forecast(
         df_feat["peak_load"], 
         preds_series, 
