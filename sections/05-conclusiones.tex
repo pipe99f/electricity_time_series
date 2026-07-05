@@ -7,10 +7,11 @@
 \subsection*{Conclusiones}
 
 \begin{enumerate}
-  \item El artículo propone un marco híbrido que combina modelos estadísticos de series temporales (ARIMA, VAR) con regresores de aprendizaje automático (Lasso, Ridge, XGBoost) para el pronóstico del pico de demanda eléctrica en Tamil Nadu. Según sus resultados, el modelo híbrido es el de menor error (MAPE $3{,}82\,\%$), seguido por ARIMA ($6{,}28\,\%$) y VAR ($7{,}82\,\%$), aunque el resumen del artículo contradice estas tablas al atribuir el mejor desempeño a ARIMA (MAPE $1{,}26\,\%$).
-  \item La aplicación a datos mensuales de Países Bajos coincidió con lo reportado en el artículo: el ARIMA superó al VAR (MAPE $2{,}64\,\%$ frente a $3{,}64\,\%$). Esto muestra que, en series univariadas con estacionalidad marcada, un ARIMA bien calibrado es una base sólida y difícil de superar cuando las exógenas, incluida la población urbana, no aportan información adicional.
-  \item El diagnóstico de residuos mostró una diferencia: el ARIMA dejó autocorrelación residual (Ljung-Box $p<0{,}05$), lo que indica que su estructura estacional es insuficiente; el VAR, en cambio, presentó residuos sin autocorrelación ($p=0{,}47$), con un ajuste más adecuado de la dinámica, aunque con mayor error de pronóstico.
-  \item La ingeniería de variables (rezagos, medias móviles, términos de interacción entre clima y consumo) y la incorporación de predictores meteorológicos ayudan a reducir el error, como también sostiene el artículo.
+    \item El estudio permitió implementar y evaluar diferentes modelos de pronóstico para la demanda máxima mensual de electricidad en los Países Bajos, siguiendo la metodología propuesta por Suriya y Agusthiyar (2026). Los resultados mostraron que el modelo híbrido obtuvo el mejor desempeño, alcanzando un MAPE de 2.310\%, superando a los modelos individuales Lasso (2.552\%), ARIMA (2.638\%), Ridge (3.289\%), VAR (3.644\%) y XGBoost (6.106\%).
+
+    \item Entre los modelos individuales, Lasso y ARIMA presentaron los mejores resultados, evidenciando que tanto los modelos de aprendizaje automático con regularización como los modelos estadísticos continúan siendo alternativas competitivas para el pronóstico de series temporales. Ridge obtuvo un desempeño intermedio, superando al modelo VAR, mientras que XGBoost registró el mayor error entre los modelos evaluados.
+
+    \item Los resultados confirman que la incorporación de ingeniería de características, como variables rezagadas, medias móviles, variables climáticas y codificación cíclica del tiempo, contribuye a mejorar la capacidad predictiva del modelo. Asimismo, se evidencia que la combinación de enfoques estadísticos y de aprendizaje automático permite obtener pronósticos más precisos que los modelos individuales, en concordancia con la propuesta metodológica del artículo de referencia, aun cuando el estudio se realizó sobre un conjunto de datos diferente al utilizado en la investigación original.
 \end{enumerate}
 
 \subsection*{Recomendaciones}
